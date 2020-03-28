@@ -10,17 +10,14 @@
 MODULE_LICENSE("Dual BSD/GPL");
 
 //has to match the required signature
-//file descriptor to file pointer? How does it get converted?
+//file descriptor to file pointer? How does it get converted? - got it, read system library call to vfs_read to this
 ssize_t proc_list_read(struct file *fp, char __user* out, size_t size, loff_t* off) {
-	//printk(KERN_ALERT "Why %lld", fp->f_pos);
-	if(fp->f_pos == 0) {
+	if(0 == *off) {
 	struct task_struct *p;
-	char *buf = (char*)kmalloc(8196, GFP_KERNEL);
+	int buf_length = 1024;
+	char *buf = kzalloc(buf_length, GFP_KERNEL);
 	for_each_process(p) {
-		//printk(KERN_ALERT "%ld %lln\n", size, off);
-		
-		//char *state = (char*)kmalloc(24, GFP_KERNEL);
-		char *task_buf = (char*)kmalloc(64, GFP_KERNEL);
+		char task_buf[22];
 		/*
 		switch(p->state) {
 			case 0x0000: strcpy(state,"TASK_RUNNING"); break;
@@ -38,35 +35,27 @@ ssize_t proc_list_read(struct file *fp, char __user* out, size_t size, loff_t* o
 
 		}
 		*/
-		//krealloc(state, strlen(state), GFP_KERNEL);
-		sprintf(task_buf, "%d,%d,%d,%ld\n", p->pid, (p->parent)->pid, task_cpu(p), p->state);
-		krealloc(task_buf, strlen(task_buf), GFP_KERNEL);
-		if(sizeof(task_buf) + strlen(buf) > sizeof(buf)) {
-			krealloc(buf, sizeof(buf)+1024, GFP_KERNEL);
+		sprintf(task_buf, "%5d,%5d,%2d,%5ld\n", p->pid, (p->parent)->pid, task_cpu(p), p->state);
+		if(strlen(task_buf) + strlen(buf) > buf_length) {
+			buf_length += 1024;
+			char *intermediate = kzalloc(buf_length, GFP_KERNEL);
+			memcpy(intermediate, buf, strlen(buf));
+			buf = intermediate;
 		}
 		strcat(buf,task_buf);
-		//kfree(state);
-		kfree(task_buf);
-		//copy_to_user(out, buf, strlen(buf)+1);
-		//strcat(buf,in_buf);
 	}
 	fp->private_data = buf;
-	printk(KERN_ALERT "%s\n %ld\n", (char*)fp->private_data, strlen((char*)fp->private_data));
-	//printk(KERN_ALERT "%ld\n", strlen((char*)fp->private_data));
 	}
-	//printk(KERN_ALERT "%ld\n", strlen((char*)fp->private_data));
-
+	
 	char output[size];
 	int i;
-	int end = (size > strlen((char*)fp->private_data) - fp->f_pos) ? strlen((char*)fp->private_data) - fp->f_pos : size;  
+	int int_off = (int)*off;
+	int end = (size > strlen((char*)fp->private_data) - int_off)  ? strlen((char*)fp->private_data) - int_off - 1: size;  
 	for(i = 0; i < end; i++) {
-		output[i] = (char)(((char*)fp->private_data)[fp->f_pos + i]);
-		//printk(KERN_ALERT "%c\n", output[i]);
+		output[i] = (char)(((char*)fp->private_data)[int_off + i]);
 	}
-	fp->f_pos += end;
-	//printk(KERN_ALERT "%s\n", output);
-	copy_to_user(out, output, strlen(output));
-	//printk(KERN_ALERT "%s\n", out);
+	*off = *off + end; 
+	copy_to_user(out, output, strlen(output)+1);
 	return strlen(output);
 }
 
