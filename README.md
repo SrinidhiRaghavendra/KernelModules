@@ -26,3 +26,8 @@ March 22 - User program will be completed.
 March 27 - Tested clean code submission.
 
 Github link: https://github.com/SrinidhiRaghavendra/KernelModules
+
+NOTES:
+1. The device driver gives the result in the expected format, no need to format it on the user side.
+2. For showing multiple simulatoneous open requests to the device driver, the user program makes two open system library calls and then starts reading from one and after completely reading from one, another file descriptor's read start. And then both file descriptors are closed at the end.
+3. Multiple processes of the user program can be run simultaneously too.

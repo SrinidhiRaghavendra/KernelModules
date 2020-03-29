@@ -17,8 +17,8 @@ ssize_t proc_list_read(struct file *fp, char __user* out, size_t size, loff_t* o
 	int buf_length = 1024;
 	char *buf = kzalloc(buf_length, GFP_KERNEL);
 	for_each_process(p) {
-		char task_buf[22];
-		/*
+		//char task_buf[22];
+		char state[24];
 		switch(p->state) {
 			case 0x0000: strcpy(state,"TASK_RUNNING"); break;
 			case 0x0001: strcpy(state,"TASK_INTERRUPTIBLE"); break;
@@ -34,29 +34,39 @@ ssize_t proc_list_read(struct file *fp, char __user* out, size_t size, loff_t* o
 			case 0x1000: strcpy(state,"TASK_STATE_MAX"); break;
 
 		}
-		*/
-		sprintf(task_buf, "%5d,%5d,%2d,%5ld\n", p->pid, (p->parent)->pid, task_cpu(p), p->state);
+		char task_buf[39+strlen(state)];
+		sprintf(task_buf, "PID=%5d, PPID=%5d, CPU=%2d, STATE=", p->pid, (p->parent)->pid, task_cpu(p));
+		strcat(task_buf, state);
+		strcat(task_buf, "\n");
+		//printk(KERN_ALERT "%s", task_buf);
 		if(strlen(task_buf) + strlen(buf) > buf_length) {
-			buf_length += 1024;
+			buf_length += buf_length - strlen(buf) + strlen(buf);
 			char *intermediate = kzalloc(buf_length, GFP_KERNEL);
 			memcpy(intermediate, buf, strlen(buf));
+			kfree(buf);
 			buf = intermediate;
+
 		}
 		strcat(buf,task_buf);
 	}
 	fp->private_data = buf;
+	printk(KERN_ALERT "%ld\n", strlen(fp->private_data));
 	}
 	
 	char output[size];
 	int i;
 	int int_off = (int)*off;
-	int end = (size > strlen((char*)fp->private_data) - int_off)  ? strlen((char*)fp->private_data) - int_off - 1: size;  
+	if(int_off >= strlen((char*)fp->private_data)) {
+		return 0;
+	}
+	int end = (size > strlen((char*)fp->private_data) - int_off)  ? (strlen((char*)fp->private_data) - int_off) : size;  
 	for(i = 0; i < end; i++) {
 		output[i] = (char)(((char*)fp->private_data)[int_off + i]);
 	}
 	*off = *off + end; 
-	copy_to_user(out, output, strlen(output)+1);
-	return strlen(output);
+	printk(KERN_ALERT "%s %d %lld\n", output, end, *off);
+	copy_to_user(out, output, end);
+	return end;
 }
 
 static struct file_operations proc_list_fops = {
